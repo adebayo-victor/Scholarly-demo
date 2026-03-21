@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholarly - Academic Ecosystem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #020617;
+            --text-color: #f8fafc;
+            --glass-bg: rgba(15, 23, 42, 0.8);
+            --border-color: rgba(255, 255, 255, 0.05);
+            --card-bg: rgba(30, 41, 59, 0.3);
+            --accent: #6366f1;
+            --sidebar-bg: #0f172a;
+            --pdf-accent: #6366f1;
+            --pdf-font-size: 15px;
+        }
+
+        .light-mode {
+            --bg-color: #f8f9ff;
+            --text-color: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(0, 0, 0, 0.05);
+            --card-bg: #ffffff;
+            --sidebar-bg: #ffffff;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            overflow: hidden; 
+            transition: all 0.3s ease;
+        }
+        
+        .glass { 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(16px); 
+            border: 1px solid var(--border-color); 
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        .active-tab { border-bottom: 2px solid var(--accent); color: var(--accent); }
+        
+        .dash-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        .dash-card:hover { 
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+
+        .sidebar-item {
+            transition: all 0.2s;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        .sidebar-item:hover { background: rgba(99, 102, 241, 0.1); color: var(--accent); }
+        
+        #preview-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            padding: 1rem;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-container {
+            background: white;
+            width: 95%;
+            max-width: 1200px;
+            height: 90vh;
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .pdf-font-serif { font-family: 'Playfair Display', serif; }
+        .pdf-font-sans { font-family: 'Inter', sans-serif; }
+        .pdf-font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        .pdf-style-academic h1 { border-bottom: 3px double var(--pdf-accent); padding-bottom: 8px; margin-bottom: 24px; text-transform: uppercase; font-size: 2.25rem; color: var(--pdf-accent); }
+        .pdf-style-modern h1 { background: var(--pdf-accent); color: white; padding: 24px; border-radius: 12px; margin-bottom: 30px; font-weight: 800; }
+        .pdf-style-classic h1 { border-left: 10px solid var(--pdf-accent); padding-left: 20px; margin-bottom: 30px; font-weight: 700; color: var(--pdf-accent); }
+
+        .content-body { font-size: var(--pdf-font-size); line-height: 1.8; text-align: justify; color: #1e293b; }
+
+        .flashcard {
+            perspective: 1000px;
+            height: 240px;
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            border-radius: 1.5rem;
+        }
+        .flashcard-back {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- Preview Modal -->
+    <div id="preview-modal" onclick="closePreview()">
+        <div class="preview-container" onclick="event.stopPropagation()">
+            <div class="w-80 border-r border-slate-100 bg-slate-50 p-6 flex flex-col gap-6 custom-scrollbar overflow-y-auto">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-sm mb-4">Layout</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button onclick="setPdfStyle('academic')" id="btn-academic" class="w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all bg-white border border-indigo-100 text-indigo-600 shadow-sm">Academic</button>
+                        <button onclick="setPdfStyle('modern')" id="btn-modern" class="w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all text-slate-500 hover:bg-white border border-transparent">Modern</button>
+                        <button onclick="setPdfStyle('classic')" id="btn-classic" class="w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all text-slate-500 hover:bg-white border border-transparent">Classic</button>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-200">
+                    <h3 class="font-bold text-slate-900 text-sm mb-4">Typography</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="setPdfFont('serif')" id="font-serif" class="px-3 py-2 bg-white border rounded-lg text-xs font-serif hover:border-indigo-400">Serif</button>
+                        <button onclick="setPdfFont('sans')" id="font-sans" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-sans">Sans</button>
+                        <button onclick="setPdfFont('mono')" id="font-mono" class="px-3 py-2 bg-white border rounded-lg text-xs font-mono hover:border-indigo-400">Mono</button>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-200">
+                    <h3 class="font-bold text-slate-900 text-sm mb-4">Theme Configuration</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">Accent Color</label>
+                            <div class="flex gap-2 mb-3">
+                                <button onclick="setPdfColor('#6366f1')" class="w-6 h-6 rounded-full bg-[#6366f1] border-2 border-white shadow-sm"></button>
+                                <button onclick="setPdfColor('#ec4899')" class="w-6 h-6 rounded-full bg-[#ec4899] border-2 border-white shadow-sm"></button>
+                                <button onclick="setPdfColor('#10b981')" class="w-6 h-6 rounded-full bg-[#10b981] border-2 border-white shadow-sm"></button>
+                                <button onclick="setPdfColor('#f59e0b')" class="w-6 h-6 rounded-full bg-[#f59e0b] border-2 border-white shadow-sm"></button>
+                            </div>
+                            <input type="color" id="pdf-color-picker" oninput="setPdfColor(this.value)" value="#6366f1" class="w-full h-10 rounded-lg cursor-pointer bg-white border p-1">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">Text Size (<span id="font-size-val">15</span>px)</label>
+                            <input type="range" id="pdf-font-range" oninput="updatePdfTheme()" min="12" max="24" value="15" class="w-full accent-indigo-600">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-auto space-y-2 pt-6">
+                    <button id="download-btn" class="w-full bg-indigo-600 text-white py-3 rounded-xl text-xs font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-600/20">Export PDF</button>
+                    <button onclick="closePreview()" class="w-full bg-white text-slate-500 py-3 rounded-xl text-xs font-bold hover:bg-slate-100 border border-slate-200">Dismiss</button>
+                </div>
+            </div>
+            <div id="modal-content-wrapper" class="flex-1 overflow-y-auto bg-slate-200 p-12 custom-scrollbar flex justify-center">
+                <div id="modal-content" class="bg-white shadow-2xl p-16 min-h-[1056px] w-full max-w-[800px] pdf-style-academic pdf-font-sans transition-all duration-300"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="glass border-b px-8 py-4 flex items-center justify-between shrink-0 z-50">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight">Scholarly</h1>
+                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">V2.1 Academic</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-10">
+            <div class="flex gap-8 text-sm font-medium text-slate-400">
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="py-2 active-tab">Dashboard</button>
+                <button onclick="switchTab('chat')" id="tab-chat" class="py-2">Chat</button>
+                <button onclick="switchTab('flashcards')" id="tab-flashcards" class="py-2">Flashcards</button>
+                <button onclick="switchTab('resources')" id="tab-resources" class="py-2">Resources</button>
+                <button onclick="switchTab('blog')" id="tab-blog" class="py-2">News</button>
+            </div>
+            <button onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-800/50 text-slate-400 transition-colors hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-1 flex overflow-hidden">
+        <aside class="w-20 lg:w-72 border-r border-slate-800/50 p-8 flex flex-col gap-4 shrink-0" style="background: var(--sidebar-bg)">
+            <div class="space-y-1">
+                <div onclick="switchTab('dashboard')" class="sidebar-item p-4 flex items-center gap-3 text-sm font-semibold text-slate-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span class="hidden lg:inline">Academic Overview</span>
+                </div>
+            </div>
+            <div class="mt-auto pt-4 border-t border-slate-800/50">
+                <div class="sidebar-item p-4 flex items-center gap-3 text-sm font-bold text-red-400/80">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span class="hidden lg:inline">Sign Out</span>
+                </div>
+            </div>
+        </aside>
+
+        <div class="flex-1 overflow-y-auto custom-scrollbar bg-[var(--bg-color)]">
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="p-10 space-y-10 max-w-[1400px] mx-auto">
+                <header>
+                    <h2 class="text-4xl font-black">Scholarly Command Center 👋</h2>
+                    <p class="text-slate-400 text-sm mt-2">Welcome back. Your study streak is currently 14 days.</p>
+                </header>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="dash-card p-6 rounded-3xl bg-indigo-600 text-white shadow-xl">
+                        <p class="text-[10px] opacity-70 uppercase font-bold mb-1">Active Courses</p>
+                        <p class="text-4xl font-black">6</p>
+                    </div>
+                    <div class="dash-card p-6 rounded-3xl">
+                        <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Study Hours</p>
+                        <p class="text-4xl font-black">124.5</p>
+                    </div>
+                    <div class="dash-card p-6 rounded-3xl">
+                        <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Completion Rate</p>
+                        <p class="text-4xl font-black">88%</p>
+                    </div>
+                    <div class="dash-card p-6 rounded-3xl">
+                        <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Assignments</p>
+                        <p class="text-4xl font-black">12</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- News View -->
+            <div id="view-blog" class="hidden p-10 max-w-6xl mx-auto space-y-10">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-4xl font-black">Academic Press</h2>
+                    <span class="bg-indigo-500/10 text-indigo-400 text-[10px] font-black px-4 py-2 rounded-full border border-indigo-500/20">LATEST UPDATES</span>
+                </div>
+                <div id="blog-posts" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            </div>
+
+            <!-- Resources View -->
+            <div id="view-resources" class="hidden p-10 max-w-6xl mx-auto space-y-10">
+                <div class="text-center space-y-4 mb-16">
+                    <h2 class="text-5xl font-black tracking-tighter">Scholarly Synthesis</h2>
+                    <p class="text-slate-500 text-sm max-w-xl mx-auto">Generate academic dossiers with custom styling instructions.</p>
+                </div>
+                <div class="glass p-4 rounded-[2.5rem] flex flex-col md:flex-row gap-4 border-slate-700/50 max-w-4xl mx-auto shadow-2xl">
+                    <div class="flex-1">
+                        <label class="text-[10px] font-black text-slate-500 uppercase ml-4 mb-2 block">Research Topic</label>
+                        <input id="res-topic" type="text" placeholder="e.g. Quantum Computing" class="w-full bg-slate-800/50 p-4 rounded-2xl outline-none text-sm border border-white/5">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-[10px] font-black text-slate-500 uppercase ml-4 mb-2 block">Styling Instructions</label>
+                        <input id="res-style" type="text" placeholder="e.g. Formal, Bullet points" class="w-full bg-slate-800/50 p-4 rounded-2xl outline-none text-sm border border-white/5">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="generateResourceFromPrompt()" id="res-gen-btn" class="bg-indigo-600 px-8 h-[54px] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20 w-full md:w-auto">Synthesize</button>
+                    </div>
+                </div>
+                <div id="generated-resources" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-10"></div>
+            </div>
+
+            <!-- Chat View -->
+            <div id="view-chat" class="hidden h-full flex flex-col">
+                <div id="chat-window" class="flex-1 overflow-y-auto p-10 space-y-6 custom-scrollbar"></div>
+                <div class="p-8 border-t border-slate-800/50">
+                    <div class="max-w-4xl mx-auto flex gap-4 p-3 glass rounded-3xl border-slate-700/50">
+                        <input id="user-input" type="text" onkeydown="if(event.key==='Enter')sendMessage()" class="flex-1 bg-transparent border-none text-sm outline-none px-4" placeholder="Ask anything...">
+                        <button onclick="sendMessage()" class="bg-indigo-600 w-14 h-14 rounded-2xl text-white flex items-center justify-center hover:bg-indigo-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Flashcards View -->
+            <div id="view-flashcards" class="hidden p-10 max-w-5xl mx-auto space-y-10">
+                <h2 class="text-4xl font-black">Active Recall Hub</h2>
+                <div id="flashcard-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const apiKey = "AIzaSyADFsWRvnQziE4uJnI2C3wbKAGoRjyPsT0"; 
+        let currentPdfStyle = 'academic';
+        let currentPdfFont = 'sans';
+        
+        // Chat Memory State
+        let conversationHistory = [];
+
+        let blogData = [
+            { id: 1, title: 'Generative AI in STEM', content: 'Recent studies suggest that LLM integration in physics classrooms has increased problem-solving efficiency by 40%. researchers are now focusing on mitigating hallucination rates in complex calculus operations.', category: 'TECH TRENDS', date: 'March 20, 2026' },
+            { id: 2, title: 'Neuroplasticity & Deep Work', content: 'New neuroimaging results show that 90-minute "Deep Work" sessions significantly strengthen synaptic connections in the prefrontal cortex compared to fragmented study periods.', category: 'NEUROSCIENCE', date: 'March 19, 2026' },
+            { id: 3, title: 'Sustainable Energy Breakthrough', content: 'Stanford engineers have prototyped a new perovskite solar cell with a record-breaking 31% efficiency. This could potentially reduce the cost of campus energy by half within the next decade.', category: 'ENGINEERING', date: 'March 18, 2026' }
+        ];
+
+        let flashcards = [
+            { q: "What is neuroplasticity?", a: "The ability of the brain to form and reorganize synaptic connections, especially in response to learning or experience." },
+            { q: "Define Heisenberg's Uncertainty Principle", a: "The principle that the position and the velocity of an object cannot both be measured exactly, at the same time." },
+            { q: "What is the primary function of Mitochondria?", a: "To produce the energy currency of the cell, ATP, through respiration and to regulate cellular metabolism." }
+        ];
+
+        window.onload = function() { 
+            renderBlog(); 
+            renderFlashcards();
+            addMessage("Systems online. Scholarly AI ready for synthesis. 🎓", 'bot');
+        };
+
+        function setPdfColor(hex) {
+            document.documentElement.style.setProperty('--pdf-accent', hex);
+            document.getElementById('pdf-color-picker').value = hex;
+        }
+
+        function updatePdfTheme() {
+            const size = document.getElementById('pdf-font-range').value;
+            document.getElementById('font-size-val').innerText = size;
+            document.documentElement.style.setProperty('--pdf-font-size', size + 'px');
+        }
+
+        function setPdfStyle(style) {
+            currentPdfStyle = style;
+            const content = document.getElementById('modal-content');
+            ['academic', 'modern', 'classic'].forEach(function(s) {
+                content.classList.remove('pdf-style-' + s);
+                const btn = document.getElementById('btn-' + s);
+                if (s === style) {
+                    btn.className = "w-full text-left px-4 py-3 rounded-xl text-xs font-black bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-sm";
+                    content.classList.add('pdf-style-' + s);
+                } else {
+                    btn.className = "w-full text-left px-4 py-3 rounded-xl text-xs font-bold text-slate-500 hover:bg-white border border-transparent";
+                }
+            });
+        }
+
+        function setPdfFont(font) {
+            currentPdfFont = font;
+            const content = document.getElementById('modal-content');
+            ['serif', 'sans', 'mono'].forEach(function(f) {
+                content.classList.remove('pdf-font-' + f);
+                const btn = document.getElementById('font-' + f);
+                if (f === font) {
+                    btn.className = `px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-${f}`;
+                    content.classList.add('pdf-font-' + f);
+                } else {
+                    btn.className = `px-3 py-2 bg-white border rounded-lg text-xs font-${f} hover:border-indigo-400`;
+                }
+            });
+        }
+
+        function previewPDF(title, htmlContent) {
+            const modal = document.getElementById('preview-modal');
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                <div class="pdf-inner">
+                    <h1>${title}</h1>
+                    <div class="content-body">${htmlContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}</div>
+                    <div style="margin-top: 80px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">
+                        Synthesized via Scholarly Academic OS • ${new Date().toLocaleDateString()}
+                    </div>
+                </div>
+            `;
+            setPdfStyle(currentPdfStyle);
+            setPdfFont(currentPdfFont);
+            modal.style.display = 'flex';
+            document.getElementById('download-btn').onclick = function() {
+                html2pdf().set({ margin: 1, filename: 'scholarly_synthesis.pdf', html2canvas: { scale: 2 } }).from(content).save();
+            };
+        }
+
+        function closePreview() { document.getElementById('preview-modal').style.display = 'none'; }
+
+        function switchTab(tabId) {
+            ['chat', 'dashboard', 'resources', 'blog', 'flashcards'].forEach(function(t) {
+                const view = document.getElementById('view-' + t);
+                const btn = document.getElementById('tab-' + t);
+                if (t === tabId) {
+                    view.classList.remove('hidden');
+                    btn.classList.add('active-tab');
+                } else {
+                    view.classList.add('hidden');
+                    btn.classList.remove('active-tab');
+                }
+            });
+        }
+
+        function toggleTheme() { document.body.classList.toggle('light-mode'); }
+
+        async function fetchGeminiChat(userInput) {
+            // Update history with user's new message
+            conversationHistory.push({ role: 'user', parts: [{ text: userInput }] });
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: conversationHistory,
+                    systemInstruction: { parts: [{ text: "You are Scholarly AI, an academic support system. Respond concisely and academically. Maintain context of previous messages." }] }
+                })
+            });
+            
+            const data = await res.json();
+            const botText = data.candidates[0].content.parts[0].text;
+            
+            // Add bot's response to history
+            conversationHistory.push({ role: 'model', parts: [{ text: botText }] });
+            
+            // Limit memory to last 10 exchanges to prevent payload bloat
+            if (conversationHistory.length > 20) {
+                conversationHistory = conversationHistory.slice(-20);
+            }
+            
+            return botText;
+        }
+
+        async function fetchGeminiResource(prompt, systemPrompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                })
+            });
+            return await res.json();
+        }
+
+        async function generateResourceFromPrompt() {
+            const topic = document.getElementById('res-topic').value;
+            const style = document.getElementById('res-style').value;
+            const btn = document.getElementById('res-gen-btn');
+            if (!topic) return;
+            btn.innerText = "Synthesizing..."; btn.disabled = true;
+            try {
+                const prompt = `Synthesize a comprehensive study guide for: ${topic}. Format style: ${style || 'Academic'}.`;
+                const result = await fetchGeminiResource(prompt, "Academic Synthesis Engine.");
+                const text = result.candidates[0].content.parts[0].text;
+                const card = document.createElement('div');
+                card.className = "dash-card p-8 rounded-[2.5rem] cursor-pointer border border-white/10";
+                card.innerHTML = `<h4 class="font-black text-xl mb-2">${topic}</h4><p class="text-[10px] text-indigo-400 uppercase font-black tracking-widest bg-indigo-500/10 w-max px-3 py-1 rounded-lg">Verified Dossier</p>`;
+                card.onclick = function() { previewPDF(topic, text); };
+                document.getElementById('generated-resources').prepend(card);
+            } finally { btn.innerText = "Synthesize"; btn.disabled = false; }
+        }
+
+        function addMessage(text, sender) {
+            const win = document.getElementById('chat-window');
+            const div = document.createElement('div');
+            if (sender === 'user') {
+                div.className = 'flex justify-end';
+            } else {
+                div.className = 'flex justify-start';
+            }
+            div.innerHTML = `<div class="max-w-[85%] p-5 rounded-3xl text-sm ${sender === 'user' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-800 border border-white/5'}">${text.replace(/\n/g, '<br>')}</div>`;
+            win.appendChild(div);
+            win.scrollTop = win.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            if (!text) return;
+            addMessage(text, 'user');
+            input.value = "";
+            try {
+                const botResponse = await fetchGeminiChat(text);
+                addMessage(botResponse, 'bot');
+            } catch (e) {
+                addMessage("Synthesis interrupted. Please check connectivity.", 'bot');
+            }
+        }
+
+        function renderBlog() {
+            const container = document.getElementById('blog-posts');
+            container.innerHTML = '';
+            blogData.forEach(function(post) {
+                const card = document.createElement('div');
+                card.className = "dash-card p-8 rounded-[2.5rem] cursor-pointer group flex flex-col justify-between h-full";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-[9px] font-black text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-lg tracking-widest">${post.category}</span>
+                            <span class="text-[9px] font-bold text-slate-500">${post.date}</span>
+                        </div>
+                        <h3 class="font-black text-xl mb-4 group-hover:text-indigo-400 transition-colors">${post.title}</h3>
+                        <p class="text-xs text-slate-400 line-clamp-3 leading-relaxed mb-6">${post.content}</p>
+                    </div>
+                    <div class="pt-4 border-t border-white/5 flex items-center justify-between text-[10px] font-black text-slate-500 uppercase">
+                        <span>Read Full Report</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="group-hover:translate-x-1 transition-transform"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </div>
+                `;
+                card.onclick = function() { previewPDF(post.title, post.content); };
+                container.appendChild(card);
+            });
+        }
+
+        function renderFlashcards() {
+            const container = document.getElementById('flashcard-grid');
+            container.innerHTML = '';
+            flashcards.forEach(function(card) {
+                const el = document.createElement('div');
+                el.className = "flashcard";
+                el.innerHTML = `
+                    <div class="flashcard-inner" onclick="this.parentElement.classList.toggle('flipped')">
+                        <div class="flashcard-front bg-slate-800 border border-white/5 flex flex-col gap-4">
+                            <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Question</span>
+                            <p class="font-medium text-lg">${card.q}</p>
+                        </div>
+                        <div class="flashcard-back bg-indigo-600 text-white flex flex-col gap-4">
+                             <span class="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Answer</span>
+                            <p class="font-medium text-lg">${card.a}</p>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+    </script>
+</body>
+</html>
