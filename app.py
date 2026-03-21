@@ -24,7 +24,7 @@ def generate():
 
         # Re-initialize model with the specific system instruction sent from frontend
         dynamic_model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name='gemini-3-flash-preview',
             system_instruction=system_instructions
         )
 
