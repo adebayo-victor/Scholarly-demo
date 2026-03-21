@@ -437,17 +437,22 @@
 
 
         async function fetchGeminiResource(prompt, systemPrompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] }
-                })
-            });
-            return await res.json();
+            try {
+                const res = await fetch('/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        system_instruction: systemPrompt // Sending both to Flask
+                    })
+                });
+                return await res.json();
+            } catch (error) {
+                console.error("Scholarly Engine Error:", error);
+                return { error: "Failed to connect to backend" };
+            }
         }
+
 
         async function generateResourceFromPrompt() {
             const topic = document.getElementById('res-topic').value;

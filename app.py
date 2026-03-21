@@ -16,19 +16,26 @@ def index():
     return render_template('index.html')
 
 @app.route('/generate', methods=['POST'])
-def generate_response():
+def generate():
     try:
-        # Get the user prompt from the frontend request
         data = request.json
         user_prompt = data.get("prompt")
-        
-        if not user_prompt:
-            return jsonify({"error": "No prompt provided"}), 400
+        system_instructions = data.get("system_instruction", "You are a helpful academic assistant.")
 
-        # Generate response using the server-side API key
-        response = model.generate_content(user_prompt)
+        # Re-initialize model with the specific system instruction sent from frontend
+        dynamic_model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',
+            system_instruction=system_instructions
+        )
+
+        response = dynamic_model.generate_content(user_prompt)
         
-        return jsonify({"response": response.text})
+        # Return the same structure your frontend expects
+        return jsonify({
+            "candidates": [{
+                "content": {"parts": [{"text": response.text}]}
+            }]
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
