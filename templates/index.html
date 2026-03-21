@@ -411,33 +411,30 @@
 
         function toggleTheme() { document.body.classList.toggle('light-mode'); }
 
-        async function fetchGeminiChat(userInput) {
-            // Update history with user's new message
-            conversationHistory.push({ role: 'user', parts: [{ text: userInput }] });
-            
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: conversationHistory,
-                    systemInstruction: { parts: [{ text: "You are Scholarly AI, an academic support system. Respond concisely and academically. Maintain context of previous messages." }] }
-                })
-            });
-            
-            const data = await res.json();
-            const botText = data.candidates[0].content.parts[0].text;
-            
-            // Add bot's response to history
-            conversationHistory.push({ role: 'model', parts: [{ text: botText }] });
-            
-            // Limit memory to last 10 exchanges to prevent payload bloat
-            if (conversationHistory.length > 20) {
-                conversationHistory = conversationHistory.slice(-20);
+        async function fetchGeminiChat(userPrompt) {
+            try {
+                const response = await fetch('http://127.0.0.1:5000/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt: userPrompt }),
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    return `Error: ${data.error}`;
+                }
+
+                return data.response; // ✅ RETURN DATA
+
+            } catch (error) {
+                console.error("Connection error:", error);
+                return "Failed to connect to the academic engine.";
             }
-            
-            return botText;
         }
+
 
         async function fetchGeminiResource(prompt, systemPrompt) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
@@ -487,14 +484,15 @@
             const input = document.getElementById('user-input');
             const text = input.value.trim();
             if (!text) return;
+
             addMessage(text, 'user');
             input.value = "";
-            try {
-                const botResponse = await fetchGeminiChat(text);
-                addMessage(botResponse, 'bot');
-            } catch (e) {
-                addMessage("Synthesis interrupted. Please check connectivity.", 'bot');
-            }
+
+            addMessage("Thinking...", 'bot'); // optional loading
+
+            const botResponse = await fetchGeminiChat(text);
+
+            addMessage(botResponse, 'bot');
         }
 
         function renderBlog() {
