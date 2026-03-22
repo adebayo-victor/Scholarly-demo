@@ -489,14 +489,11 @@
             const input = document.getElementById('user-input');
             const text = input.value.trim();
             if (!text) return;
-
+        
             addMessage(text, 'user');
             input.value = "";
-
-            addMessage("Thinking...", 'bot'); // optional loading
-
+        
             const botResponse = await fetchGeminiChat(text);
-
             addMessage(botResponse, 'bot');
         }
 
