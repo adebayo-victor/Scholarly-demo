@@ -427,8 +427,7 @@
                     return `Error: ${data.error}`;
                 }
 
-                return data.response; // ✅ RETURN DATA
-
+                return result.candidates[0].content.parts[0].text;
             } catch (error) {
                 console.error("Connection error:", error);
                 return "Failed to connect to the academic engine.";
